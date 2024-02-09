@@ -9,6 +9,8 @@ var (
 	ErrInvalidPeerAddress     = errors.New("invalid peer address")
 	ErrInvalidPeerName        = errors.New("invalid peer name")
 	ErrInvalidPeerClusterName = errors.New("invalid peer cluster name")
+	ErrPeerNotFouund		  = errors.New("peer not found")
+	ErrPeerAlreadyExists      = errors.New("peer already exists")
 )
 
 type PeerStore struct {
@@ -23,7 +25,22 @@ func NewPeerStore() *PeerStore {
 	}
 }
 
+func (ps *PeerStore) Exists(peer *Peer) bool {
+	if peer.Addr == "" {
+		return false
+	}
+
+	ps.lock.Lock()
+	defer ps.lock.Unlock()
+
+	_, ok := ps.peers[peer.Addr]
+	return ok
+}
+
 func (ps *PeerStore) AddPeer(peer *Peer) error {
+	if ps.Exists(peer) {
+		return ErrPeerAlreadyExists
+	}
 	if peer.Addr == "" {
 		return ErrInvalidPeerAddress
 	}
@@ -47,6 +64,21 @@ func (ps *PeerStore) AddPeers(peers ...*Peer) error {
 			return err
 		}
 	}
+	return nil
+}
+
+func (ps *PeerStore) UpdatePeer(peer *Peer) error {
+	if !ps.Exists(peer) {
+		return ErrPeerNotFouund
+	}
+	if peer.Addr == "" {
+		return ErrInvalidPeerAddress
+	}
+
+	ps.lock.Lock()
+	defer ps.lock.Unlock()
+
+	ps.peers[peer.Addr] = peer
 	return nil
 }
 
