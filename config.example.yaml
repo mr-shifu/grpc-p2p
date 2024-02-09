@@ -1,0 +1,14 @@
+local:
+  name: peer0
+  clusterName: cluster_0
+  addr: localhost:8000
+bootstrap:
+  - name: peer0
+    clusterName: cluster_0
+    addr: localhost:8000
+  - name: peer0
+    clusterName: cluster_1
+    addr: localhost:8100
+  - name: peer0
+    clusterName: cluster_2
+    addr: localhost:8200
