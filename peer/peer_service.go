@@ -5,6 +5,7 @@ import (
 
 	"github.com/mr-shifu/grpc-p2p/config"
 	p2p_pb "github.com/mr-shifu/grpc-p2p/proto"
+	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -15,10 +16,12 @@ type PeerService struct {
 	peerstore *PeerStore
 	discovery *Discovery
 
+	logger zerolog.Logger
+
 	p2p_pb.UnimplementedPeerServiceServer
 }
 
-func NewPeerService(cfg *config.Config) *PeerService {
+func NewPeerService(cfg *config.Config, logger zerolog.Logger) *PeerService {
 	peerstore := NewPeerStore()
 	discovery := NewDiscovery(peerstore)
 
@@ -27,6 +30,7 @@ func NewPeerService(cfg *config.Config) *PeerService {
 		bootstrap: cfg.Bootstrap,
 		peerstore: peerstore,
 		discovery: discovery,
+		logger:    logger,
 	}
 
 	// add bootstrap nodes into peerstore

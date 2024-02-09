@@ -40,7 +40,7 @@ func NewNode(cfgpath string, logger zerolog.Logger) *Node {
 	server := grpc.NewServer(opts...)
 
 	// instantiate a new peer service
-	ps := peer.NewPeerService(cfg)
+	ps := peer.NewPeerService(cfg, logger)
 
 	// register service
 	p2p_pb.RegisterPeerServiceServer(server, ps)
