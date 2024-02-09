@@ -18,11 +18,22 @@ type PeerService struct {
 }
 
 func NewPeerService(cfg *config.Config) *PeerService {
-	return &PeerService{
+	ps :=  &PeerService{
 		self:      &cfg.Local,
 		bootstrap: cfg.Bootstrap,
 		peerstore: NewPeerStore(),
 	}
+
+	// add bootstrap nodes into peerstore
+	for _, peer := range cfg.Bootstrap {
+		ps.peerstore.AddPeer(&Peer{
+			Name:        peer.Name,
+			ClusterName: peer.ClusterName,
+			Addr:        peer.Addr,
+		})
+	}
+
+	return ps
 }
 
 func (ps *PeerService) GetClusterPeers() []*Peer {
