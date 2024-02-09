@@ -14,25 +14,45 @@ func NewPeerStore() *PeerStore {
 	}
 }
 
-func (ps *PeerStore) AddPeer(peer *Peer) {
+func (ps *PeerStore) AddPeer(peer *Peer) error {
+	if peer.Addr == "" {
+		return ErrInvalidPeerAddress
+	}
+	if peer.Name == "" {
+		return ErrInvalidPeerName
+	}
+	if peer.ClusterName == "" {
+		return ErrInvalidPeerClusterName
+	}
+
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
 
-	ps.peers[peer.Name] = peer
+	ps.peers[peer.Addr] = peer
+	return nil
 }
 
-func (ps *PeerStore) RemovePeer(peer *Peer) {
+func (ps *PeerStore) RemovePeer(peer *Peer) error {
+	if peer.Addr == "" {
+		return ErrInvalidPeerAddress
+	}
+
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
 
-	delete(ps.peers, peer.Name)
+	delete(ps.peers, peer.Addr)
+	return nil
 }
 
-func (ps *PeerStore) GetPeer(name string) *Peer {
+func (ps *PeerStore) GetPeer(addr string) (*Peer, error) {
+	if addr == "" {
+		return nil, ErrInvalidPeerAddress
+	}
+
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
 
-	return ps.peers[name]
+	return ps.peers[addr], nil
 }
 
 func (ps *PeerStore) GetAllPeers() []*Peer {
