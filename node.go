@@ -5,9 +5,11 @@ import (
 	"net"
 	"time"
 
+	p2p_pb "github.com/mr-shifu/grpc-p2p/proto"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 type Node struct {
@@ -17,6 +19,9 @@ type Node struct {
 	// Node address to listen for incoming connections
 	addr string
 
+	//
+	peerService *PeerService
+
 	// Logger to use for debug logging
 	logger zerolog.Logger
 }
@@ -24,11 +29,22 @@ type Node struct {
 // NewNode creates a new node with the given address and logger
 func NewNode(addr string, logger zerolog.Logger) *Node {
 	opts := []grpc.ServerOption{}
+	server := grpc.NewServer(opts...)
+
+	self := NewPeer(addr, "", "")
+	ps := NewPeerService(self)
+
+	// register service
+	p2p_pb.RegisterPeerServiceServer(server, ps)
+
+	// enable rpc reflection
+	reflection.Register(server)
 
 	return &Node{
-		addr:   addr,
-		server: grpc.NewServer(opts...),
-		logger: logger,
+		addr:        addr,
+		server:      server,
+		peerService: ps,
+		logger:      logger,
 	}
 }
 
