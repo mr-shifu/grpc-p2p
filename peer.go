@@ -12,6 +12,14 @@ type Peer struct {
 	conn        *grpc.ClientConn
 }
 
+func NewPeer(addr, name, clusterName string) *Peer {
+	return &Peer{
+		Name:        name,
+		ClusterName: clusterName,
+		Addr:        addr,
+	}
+}
+
 func (p *Peer) State() connectivity.State {
 	if p.conn == nil {
 		return connectivity.State(-1)
