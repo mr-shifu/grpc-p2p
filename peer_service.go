@@ -3,21 +3,24 @@ package p2p
 import (
 	"context"
 
+	"github.com/mr-shifu/grpc-p2p/config"
 	p2p_pb "github.com/mr-shifu/grpc-p2p/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
 type PeerService struct {
-	self      *Peer
+	self      *config.Peer
+	bootstrap []config.Peer
 	peerstore *PeerStore
 
 	p2p_pb.UnimplementedPeerServiceServer
 }
 
-func NewPeerService(self *Peer) *PeerService {
+func NewPeerService(cfg *config.Config) *PeerService {
 	return &PeerService{
-		self:      self,
+		self:      &cfg.Local,
+		bootstrap: cfg.Bootstrap,
 		peerstore: NewPeerStore(),
 	}
 }

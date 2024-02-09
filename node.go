@@ -34,11 +34,12 @@ func NewNode(cfgpath string, logger zerolog.Logger) *Node {
 		return nil
 	}
 
+	// create new grpc server
 	opts := []grpc.ServerOption{}
 	server := grpc.NewServer(opts...)
 
-	self := NewPeer(cfg.Local.Addr, cfg.Local.Name, cfg.Local.ClusterName)
-	ps := NewPeerService(self)
+	// instantiate a new peer service
+	ps := NewPeerService(cfg)
 
 	// register service
 	p2p_pb.RegisterPeerServiceServer(server, ps)
