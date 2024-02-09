@@ -1,6 +1,9 @@
 package p2p
 
 import (
+	"context"
+
+	p2p_pb "github.com/mr-shifu/grpc-p2p/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -8,6 +11,8 @@ import (
 type PeerService struct {
 	self      *Peer
 	peerstore *PeerStore
+
+	p2p_pb.UnimplementedPeerServiceServer
 }
 
 func NewPeerService(self *Peer) *PeerService {
@@ -15,22 +20,6 @@ func NewPeerService(self *Peer) *PeerService {
 		self:      self,
 		peerstore: NewPeerStore(),
 	}
-}
-
-func (ps *PeerService) AddPeer(peer *Peer) error {
-	return ps.peerstore.AddPeer(peer)
-}
-
-func (ps *PeerService) RemovePeer(peer *Peer) error {
-	return ps.peerstore.RemovePeer(peer)
-}
-
-func (ps *PeerService) GetPeer(name string) (*Peer, error) {
-	return ps.peerstore.GetPeer(name)
-}
-
-func (ps *PeerService) GetPeers() []*Peer {
-	return ps.peerstore.GetAllPeers()
 }
 
 func (ps *PeerService) GetClusterPeers() []*Peer {
@@ -53,7 +42,7 @@ func (ps *PeerService) Connect(p *Peer) (*grpc.ClientConn, error) {
 }
 
 func (ps *PeerService) Disconnect(p *Peer) error {
-	peer, err := ps.GetPeer(p.Addr)
+	peer, err := ps.peerstore.GetPeer(p.Addr)
 	if err != nil {
 		return err
 	}
@@ -67,11 +56,32 @@ func (ps *PeerService) Disconnect(p *Peer) error {
 }
 
 func (ps *PeerService) DisconnectAll() error {
-	peers := ps.GetPeers()
+	peers := ps.peerstore.GetAllPeers()
 	for _, peer := range peers {
 		if err := ps.Disconnect(peer); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (ps *PeerService) GetPeers(context.Context, *p2p_pb.GetPeersRequest) (*p2p_pb.GetPeersResponse, error) {
+	peers := ps.peerstore.GetAllPeers()
+	pbPeers := peersToPbPeers(peers)
+	return &p2p_pb.GetPeersResponse{
+		Peers: pbPeers,
+	}, nil
+}
+
+func peersToPbPeers(peers []*Peer) []*p2p_pb.Peer {
+	var pbPeers []*p2p_pb.Peer
+	for _, peer := range peers {
+		p := &p2p_pb.Peer{
+			Name:        peer.Name,
+			Address:     peer.Addr,
+			CLusterName: peer.ClusterName,
+		}
+		pbPeers = append(pbPeers, p)
+	}
+	return pbPeers
 }
