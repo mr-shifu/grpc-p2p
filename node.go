@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/mr-shifu/grpc-p2p/config"
+	"github.com/mr-shifu/grpc-p2p/peer"
 	p2p_pb "github.com/mr-shifu/grpc-p2p/proto"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
@@ -21,7 +22,7 @@ type Node struct {
 	local *config.Peer
 
 	//
-	peerService *PeerService
+	peerService *peer.PeerService
 
 	// Logger to use for debug logging
 	logger zerolog.Logger
@@ -39,7 +40,7 @@ func NewNode(cfgpath string, logger zerolog.Logger) *Node {
 	server := grpc.NewServer(opts...)
 
 	// instantiate a new peer service
-	ps := NewPeerService(cfg)
+	ps := peer.NewPeerService(cfg)
 
 	// register service
 	p2p_pb.RegisterPeerServiceServer(server, ps)

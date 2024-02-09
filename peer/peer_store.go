@@ -1,6 +1,15 @@
-package p2p
+package peer
 
-import "sync"
+import (
+	"errors"
+	"sync"
+)
+
+var (
+	ErrInvalidPeerAddress     = errors.New("invalid peer address")
+	ErrInvalidPeerName        = errors.New("invalid peer name")
+	ErrInvalidPeerClusterName = errors.New("invalid peer cluster name")
+)
 
 type PeerStore struct {
 	lock  sync.RWMutex

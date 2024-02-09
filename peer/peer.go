@@ -1,4 +1,4 @@
-package p2p
+package peer
 
 import (
 	"google.golang.org/grpc"
