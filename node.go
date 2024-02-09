@@ -5,6 +5,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/mr-shifu/grpc-p2p/config"
 	p2p_pb "github.com/mr-shifu/grpc-p2p/proto"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
@@ -16,8 +17,8 @@ type Node struct {
 	// The gRPC server to connect to and receive messages from the server
 	server *grpc.Server
 
-	// Node address to listen for incoming connections
-	addr string
+	// Node local config including name, cluster name, address to listen for incoming connections
+	local *config.Peer
 
 	//
 	peerService *PeerService
@@ -27,11 +28,16 @@ type Node struct {
 }
 
 // NewNode creates a new node with the given address and logger
-func NewNode(addr string, logger zerolog.Logger) *Node {
+func NewNode(cfgpath string, logger zerolog.Logger) *Node {
+	cfg, err := config.FromFile(cfgpath)
+	if err != nil {
+		return nil
+	}
+
 	opts := []grpc.ServerOption{}
 	server := grpc.NewServer(opts...)
 
-	self := NewPeer(addr, "", "")
+	self := NewPeer(cfg.Local.Addr, cfg.Local.Name, cfg.Local.ClusterName)
 	ps := NewPeerService(self)
 
 	// register service
@@ -41,7 +47,7 @@ func NewNode(addr string, logger zerolog.Logger) *Node {
 	reflection.Register(server)
 
 	return &Node{
-		addr:        addr,
+		local:       &cfg.Local,
 		server:      server,
 		peerService: ps,
 		logger:      logger,
@@ -53,14 +59,14 @@ func NewNode(addr string, logger zerolog.Logger) *Node {
 // It waits for receiving a signal from ctx to stop server grcefully
 // It forces server to stop if gracefully shutdown failed ad returns an error
 func (n *Node) Start(ctx context.Context) error {
-	ln, err := net.Listen("tcp", n.addr)
+	ln, err := net.Listen("tcp", n.Self().Addr)
 	if err != nil {
 		return err
 	}
 
 	group, gCtx := errgroup.WithContext(ctx)
 	group.Go(func() error {
-		n.logger.Debug().Msgf("Node Started with address %s", n.addr)
+		n.logger.Debug().Msgf("Node Started with address %s", n.Self().Addr)
 		if err := n.server.Serve(ln); err != nil {
 			n.logger.Error().Err(err).Msg("Server failed to start")
 			return err
@@ -96,4 +102,8 @@ func (n *Node) Stop() error {
 		n.logger.Debug().Msg("Node Gracefully Shutdown Successfully")
 		return nil
 	}
+}
+
+func (n *Node) Self() *config.Peer {
+	return n.local
 }
