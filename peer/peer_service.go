@@ -2,44 +2,51 @@ package peer
 
 import (
 	"context"
+	"errors"
 
 	"github.com/mr-shifu/grpc-p2p/config"
+	p2p_pb "github.com/mr-shifu/grpc-p2p/proto"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
 type PeerService struct {
 	self      *config.Peer
 	bootstrap []config.Peer
 	peerstore *PeerStore
-	discovery *Discovery
 
 	logger zerolog.Logger
 }
 
 func NewPeerService(cfg *config.Config, logger zerolog.Logger) *PeerService {
 	peerstore := NewPeerStore()
-	discovery := NewDiscovery(peerstore, logger)
 
 	ps := &PeerService{
 		self:      &cfg.Local,
 		bootstrap: cfg.Bootstrap,
 		peerstore: peerstore,
-		discovery: discovery,
 		logger:    logger,
 	}
 
 	// add bootstrap nodes into peerstore
 	for _, peer := range cfg.Bootstrap {
-		ps.peerstore.AddPeer(&Peer{
-			Name:        peer.Name,
-			ClusterName: peer.ClusterName,
-			Addr:        peer.Addr,
-		})
+		if peer.Addr != ps.self.Addr {
+			ps.peerstore.AddPeer(&Peer{
+				Name:        peer.Name,
+				ClusterName: peer.ClusterName,
+				Addr:        peer.Addr,
+			})
+		}
 	}
 
 	return ps
+}
+
+func (ps *PeerService) AddPeer(p *Peer) error {
+	return ps.peerstore.AddPeer(p)
 }
 
 func (ps *PeerService) GetPeers() []*Peer {
@@ -57,25 +64,54 @@ func (ps *PeerService) GetClusterPeers() []*Peer {
 	return clusterPeers
 }
 
-func (ps *PeerService) Connect(p *Peer) (*grpc.ClientConn, error) {
-	conn, err := grpc.Dial(p.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+func (ps *PeerService) GetNeighbors(ctx context.Context, p *Peer) ([]*Peer, error) {
+	if p.State() != connectivity.Ready {
+		_, err := ps.Connect(p)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	ctx = metadata.AppendToOutgoingContext(ctx, "cluster_name", ps.self.ClusterName, "peer_name", ps.self.Name)
+
+	client := p2p_pb.NewPeerServiceClient(p.conn)
+	neighbors, err := client.GetPeers(ctx, &p2p_pb.GetPeersRequest{})
 	if err != nil {
 		return nil, err
 	}
-	return conn, nil
+
+	np := peersFromPbPeers(neighbors.Peers)
+
+	return np, nil
 }
 
+// Connect connects to a peer and returns a client connection and updates peer connection at peerstore
+// throws error if connection fails
+func (ps *PeerService) Connect(p *Peer) (*grpc.ClientConn, error) {
+	// connect to peer
+	conn, err := grpc.Dial(p.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+	// update peer connection at peerstore
+	p.conn = conn
+	ps.peerstore.AddPeer(p)
+
+	return conn, err
+}
+
+// Disconnect disconnects from a peer and updates peer connection at peerstore
+// throws error if disconnection fails
 func (ps *PeerService) Disconnect(p *Peer) error {
-	peer, err := ps.peerstore.GetPeer(p.Addr)
-	if err != nil {
+	if p.conn == nil {
+		return errors.New("peer not connected")
+	}
+	if err := p.conn.Close(); err != nil {
 		return err
 	}
-	if peer == nil {
-		return nil
-	}
-	if peer.conn != nil {
-		return peer.conn.Close()
-	}
+
+	// update peer connection at peerstore
+	p.conn = nil
+	ps.peerstore.AddPeer(p)
+
 	return nil
 }
 
@@ -89,6 +125,15 @@ func (ps *PeerService) DisconnectAll() error {
 	return nil
 }
 
-func (ps *PeerService) StartDiscovery() error {
-	return ps.discovery.Start(context.Background())
+func peersFromPbPeers(pbPeers []*p2p_pb.Peer) []*Peer {
+	var peers []*Peer
+	for _, peer := range pbPeers {
+		p := &Peer{
+			Name:        peer.Name,
+			Addr:        peer.Address,
+			ClusterName: peer.CLusterName,
+		}
+		peers = append(peers, p)
+	}
+	return peers
 }

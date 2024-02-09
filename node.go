@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/mr-shifu/grpc-p2p/config"
+	"github.com/mr-shifu/grpc-p2p/discovery"
 	"github.com/mr-shifu/grpc-p2p/peer"
 	"github.com/mr-shifu/grpc-p2p/rpc"
 	"github.com/rs/zerolog"
@@ -42,15 +43,16 @@ func NewNode(cfgpath string, logger zerolog.Logger) *Node {
 	// instantiate a new peer service
 	ps := peer.NewPeerService(cfg, logger)
 
+	//
+	ds := discovery.NewDiscovery(ps, logger)
+	go ds.Start(context.Background())
+
 	// instantiate a new rpc service and register rpc service to server
 	rs := rpc.NewRpcService(ps, logger)
 	rs.RegisterService(server)
 
 	// enable rpc reflection
 	reflection.Register(server)
-
-	// start discovery
-	go ps.StartDiscovery()
 
 	return &Node{
 		local:       &cfg.Local,
