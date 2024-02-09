@@ -5,18 +5,21 @@ import (
 	"time"
 
 	p2p_pb "github.com/mr-shifu/grpc-p2p/proto"
+	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
 type Discovery struct {
-	store *PeerStore
+	store  *PeerStore
+	logger zerolog.Logger
 }
 
-func NewDiscovery(store *PeerStore) *Discovery {
+func NewDiscovery(store *PeerStore, logger zerolog.Logger) *Discovery {
 	return &Discovery{
-		store: store,
+		store:  store,
+		logger: logger,
 	}
 }
 
@@ -82,6 +85,19 @@ func (d *Discovery) refresh(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func peersFromPbPeers(pbPeers []*p2p_pb.Peer) []*Peer {
+	var peers []*Peer
+	for _, peer := range pbPeers {
+		p := &Peer{
+			Name:        peer.Name,
+			Addr:        peer.Address,
+			ClusterName: peer.CLusterName,
+		}
+		peers = append(peers, p)
+	}
+	return peers
 }
 
 func (d *Discovery) Start(ctx context.Context) error {

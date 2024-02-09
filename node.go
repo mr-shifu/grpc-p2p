@@ -7,7 +7,7 @@ import (
 
 	"github.com/mr-shifu/grpc-p2p/config"
 	"github.com/mr-shifu/grpc-p2p/peer"
-	p2p_pb "github.com/mr-shifu/grpc-p2p/proto"
+	"github.com/mr-shifu/grpc-p2p/rpc"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -42,8 +42,9 @@ func NewNode(cfgpath string, logger zerolog.Logger) *Node {
 	// instantiate a new peer service
 	ps := peer.NewPeerService(cfg, logger)
 
-	// register service
-	p2p_pb.RegisterPeerServiceServer(server, ps)
+	// instantiate a new rpc service and register rpc service to server
+	rs := rpc.NewRpcService(ps, logger)
+	rs.RegisterService(server)
 
 	// enable rpc reflection
 	reflection.Register(server)

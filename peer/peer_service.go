@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/mr-shifu/grpc-p2p/config"
-	p2p_pb "github.com/mr-shifu/grpc-p2p/proto"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -17,13 +16,11 @@ type PeerService struct {
 	discovery *Discovery
 
 	logger zerolog.Logger
-
-	p2p_pb.UnimplementedPeerServiceServer
 }
 
 func NewPeerService(cfg *config.Config, logger zerolog.Logger) *PeerService {
 	peerstore := NewPeerStore()
-	discovery := NewDiscovery(peerstore)
+	discovery := NewDiscovery(peerstore, logger)
 
 	ps := &PeerService{
 		self:      &cfg.Local,
@@ -43,6 +40,10 @@ func NewPeerService(cfg *config.Config, logger zerolog.Logger) *PeerService {
 	}
 
 	return ps
+}
+
+func (ps *PeerService) GetPeers() []*Peer {
+	return ps.peerstore.GetAllPeers()
 }
 
 func (ps *PeerService) GetClusterPeers() []*Peer {
@@ -90,38 +91,4 @@ func (ps *PeerService) DisconnectAll() error {
 
 func (ps *PeerService) StartDiscovery() error {
 	return ps.discovery.Start(context.Background())
-}
-
-func (ps *PeerService) GetPeers(context.Context, *p2p_pb.GetPeersRequest) (*p2p_pb.GetPeersResponse, error) {
-	peers := ps.peerstore.GetAllPeers()
-	pbPeers := peersToPbPeers(peers)
-	return &p2p_pb.GetPeersResponse{
-		Peers: pbPeers,
-	}, nil
-}
-
-func peersToPbPeers(peers []*Peer) []*p2p_pb.Peer {
-	var pbPeers []*p2p_pb.Peer
-	for _, peer := range peers {
-		p := &p2p_pb.Peer{
-			Name:        peer.Name,
-			Address:     peer.Addr,
-			CLusterName: peer.ClusterName,
-		}
-		pbPeers = append(pbPeers, p)
-	}
-	return pbPeers
-}
-
-func peersFromPbPeers(pbPeers []*p2p_pb.Peer) []*Peer {
-	var peers []*Peer
-	for _, peer := range pbPeers {
-		p := &Peer{
-			Name:        peer.Name,
-			Addr:        peer.Address,
-			ClusterName: peer.CLusterName,
-		}
-		peers = append(peers, p)
-	}
-	return peers
 }
