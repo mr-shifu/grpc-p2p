@@ -48,6 +48,9 @@ func NewNode(cfgpath string, logger zerolog.Logger) *Node {
 	// enable rpc reflection
 	reflection.Register(server)
 
+	// start discovery
+	go ps.StartDiscovery()
+
 	return &Node{
 		local:       &cfg.Local,
 		server:      server,

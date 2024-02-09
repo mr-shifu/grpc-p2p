@@ -13,15 +13,20 @@ type PeerService struct {
 	self      *config.Peer
 	bootstrap []config.Peer
 	peerstore *PeerStore
+	discovery *Discovery
 
 	p2p_pb.UnimplementedPeerServiceServer
 }
 
 func NewPeerService(cfg *config.Config) *PeerService {
-	ps :=  &PeerService{
+	peerstore := NewPeerStore()
+	discovery := NewDiscovery(peerstore)
+
+	ps := &PeerService{
 		self:      &cfg.Local,
 		bootstrap: cfg.Bootstrap,
-		peerstore: NewPeerStore(),
+		peerstore: peerstore,
+		discovery: discovery,
 	}
 
 	// add bootstrap nodes into peerstore
@@ -79,6 +84,10 @@ func (ps *PeerService) DisconnectAll() error {
 	return nil
 }
 
+func (ps *PeerService) StartDiscovery() error {
+	return ps.discovery.Start(context.Background())
+}
+
 func (ps *PeerService) GetPeers(context.Context, *p2p_pb.GetPeersRequest) (*p2p_pb.GetPeersResponse, error) {
 	peers := ps.peerstore.GetAllPeers()
 	pbPeers := peersToPbPeers(peers)
@@ -98,4 +107,17 @@ func peersToPbPeers(peers []*Peer) []*p2p_pb.Peer {
 		pbPeers = append(pbPeers, p)
 	}
 	return pbPeers
+}
+
+func peersFromPbPeers(pbPeers []*p2p_pb.Peer) []*Peer {
+	var peers []*Peer
+	for _, peer := range pbPeers {
+		p := &Peer{
+			Name:        peer.Name,
+			Addr:        peer.Address,
+			ClusterName: peer.CLusterName,
+		}
+		peers = append(peers, p)
+	}
+	return peers
 }
