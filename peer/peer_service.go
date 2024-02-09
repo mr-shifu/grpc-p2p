@@ -72,7 +72,7 @@ func (ps *PeerService) GetNeighbors(ctx context.Context, p *Peer) ([]*Peer, erro
 		}
 	}
 
-	ctx = metadata.AppendToOutgoingContext(ctx, "cluster_name", ps.self.ClusterName, "peer_name", ps.self.Name)
+	ctx = metadata.AppendToOutgoingContext(ctx, "addr", ps.self.Addr, "cluster_name", ps.self.ClusterName, "peer_name", ps.self.Name)
 
 	client := p2p_pb.NewPeerServiceClient(p.conn)
 	neighbors, err := client.GetPeers(ctx, &p2p_pb.GetPeersRequest{})
@@ -93,7 +93,11 @@ func (ps *PeerService) Connect(p *Peer) (*grpc.ClientConn, error) {
 
 	// update peer connection at peerstore
 	p.conn = conn
-	ps.peerstore.AddPeer(p)
+	if ps.peerstore.Exists(p) {
+		ps.peerstore.UpdatePeer(p)
+	} else {
+		ps.peerstore.AddPeer(p)
+	}
 
 	return conn, err
 }
@@ -110,7 +114,11 @@ func (ps *PeerService) Disconnect(p *Peer) error {
 
 	// update peer connection at peerstore
 	p.conn = nil
-	ps.peerstore.AddPeer(p)
+	if ps.peerstore.Exists(p) {
+		ps.peerstore.UpdatePeer(p)
+	} else {
+		ps.peerstore.AddPeer(p)
+	}
 
 	return nil
 }
