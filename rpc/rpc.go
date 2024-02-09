@@ -9,7 +9,6 @@ import (
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
-	gpeer "google.golang.org/grpc/peer"
 )
 
 type RpcService struct {
@@ -33,7 +32,7 @@ func (rs *RpcService) RegisterService(s grpc.ServiceRegistrar) {
 func (r *RpcService) GetPeers(ctx context.Context, req *p2p_pb.GetPeersRequest) (*p2p_pb.GetPeersResponse, error) {
 	peer, err := getPeerFromContext(ctx)
 	if err != nil {
-		// return nil, errors.New("failed to validate peer")
+		return nil, errors.New("failed to validate peer")
 	}
 	r.ps.AddPeer(peer)
 
@@ -45,18 +44,24 @@ func (r *RpcService) GetPeers(ctx context.Context, req *p2p_pb.GetPeersRequest) 
 }
 
 func getPeerFromContext(ctx context.Context) (*peer.Peer, error) {
+	p := &peer.Peer{}
+
 	md, _ := metadata.FromIncomingContext(ctx)
-	cn := md.Get("cluster_name")
+	
 	pn := md.Get("peer_name")
-	p, ok := gpeer.FromContext(ctx)
-	if !ok {
-		return nil, errors.New("peer not found")
+	if len(pn) > 0 {
+		p.Name = pn[0]
 	}
-	return &peer.Peer{
-		Name:        pn[0],
-		ClusterName: cn[0],
-		Addr:        p.LocalAddr.String(),
-	}, nil
+	cn := md.Get("cluster_name")
+	if len(cn) > 0 {
+		p.ClusterName = cn[0]
+	}
+	addr := md.Get("addr")
+	if len(addr) > 0 {
+		p.Addr = addr[0]
+	}
+	
+	return p, nil
 }
 
 func peersToPbPeers(peers []*peer.Peer) []*p2p_pb.Peer {
