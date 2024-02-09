@@ -41,6 +41,15 @@ func (ps *PeerStore) AddPeer(peer *Peer) error {
 	return nil
 }
 
+func (ps *PeerStore) AddPeers(peers ...*Peer) error {
+	for _, peer := range peers {
+		if err := ps.AddPeer(peer); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (ps *PeerStore) RemovePeer(peer *Peer) error {
 	if peer.Addr == "" {
 		return ErrInvalidPeerAddress
