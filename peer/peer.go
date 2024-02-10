@@ -22,7 +22,7 @@ func NewPeer(addr, name, clusterName string) *Peer {
 
 func (p *Peer) State() connectivity.State {
 	if p.conn == nil {
-		return connectivity.State(-1)
+		return connectivity.Idle
 	}
 	return p.conn.GetState()
 }
