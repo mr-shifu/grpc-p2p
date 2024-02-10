@@ -64,7 +64,7 @@ func (ps *PeerService) GetClusterPeers() []*Peer {
 	return clusterPeers
 }
 
-func (ps *PeerService) GetNeighbors(ctx context.Context, p *Peer) ([]*Peer, error) {
+func (ps *PeerService) GetNeighbors(ctx context.Context, p *Peer) ([]Peer, error) {
 	if p.State() != connectivity.Ready {
 		_, err := ps.Connect(p)
 		if err != nil {
@@ -133,10 +133,10 @@ func (ps *PeerService) DisconnectAll() error {
 	return nil
 }
 
-func peersFromPbPeers(pbPeers []*p2p_pb.Peer) []*Peer {
-	var peers []*Peer
+func peersFromPbPeers(pbPeers []*p2p_pb.Peer) []Peer {
+	var peers []Peer
 	for _, peer := range pbPeers {
-		p := &Peer{
+		p := Peer{
 			Name:        peer.Name,
 			Addr:        peer.Address,
 			ClusterName: peer.CLusterName,
