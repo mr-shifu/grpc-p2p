@@ -5,18 +5,22 @@ import (
 	"google.golang.org/grpc/connectivity"
 )
 
+type PeerAttribute map[string]string
+
 type Peer struct {
+	Addr        string
+	Attributes  map[string]string
+	conn        *grpc.ClientConn
 	Name        string
 	ClusterName string
-	Addr        string
-	conn        *grpc.ClientConn
 }
 
-func NewPeer(addr, name, clusterName string) *Peer {
+func NewPeer(addr, name, clusterName string, attrs map[string]string) *Peer {
 	return &Peer{
+		Addr:        addr,
+		Attributes:  attrs,
 		Name:        name,
 		ClusterName: clusterName,
-		Addr:        addr,
 	}
 }
 

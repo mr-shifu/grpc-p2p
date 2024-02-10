@@ -7,9 +7,10 @@ import (
 )
 
 type Peer struct {
+	Addr        string `yaml:"addr"`
+	Attributes  map[string]string
 	Name        string `yaml:"name"`
 	ClusterName string `yaml:"clusterName"`
-	Addr        string `yaml:"addr"`
 }
 
 type Config struct {
