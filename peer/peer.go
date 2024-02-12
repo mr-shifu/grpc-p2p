@@ -9,6 +9,7 @@ type PeerAttribute map[string]string
 type PeerState int
 
 // this piece of code is copied from google.golang.org/grpc/connectivity.go
+// NoConnection state is added in case the connection is not created (connection is nil)
 const (
 	// Idle indicates the ClientConn is idle.
 	Idle PeerState = iota
@@ -24,6 +25,7 @@ const (
 	NoConnection
 )
 
+// String returns the string representation of the PeerState
 func (s PeerState) String() string {
 	switch s {
 	case Idle:
@@ -43,6 +45,7 @@ func (s PeerState) String() string {
 	}
 }
 
+// PeerStateFromString returns the PeerState from the given string
 func PeerStateFromString(s string) PeerState {
 	switch s {
 	case "IDLE":
@@ -62,15 +65,19 @@ func PeerStateFromString(s string) PeerState {
 	}
 }
 
+// PeerInfo contains the address and attributes of a peer
 type PeerInfo struct {
 	Addr       string
 	Attributes map[string]string
 }
+
+// Peer contains the peer information and the connection
 type Peer struct {
 	*PeerInfo
 	conn *grpc.ClientConn
 }
 
+// NewPeer creates a new peer with the given address and attributes
 func NewPeer(addr string, attrs map[string]string) *Peer {
 	return &Peer{
 		PeerInfo: &PeerInfo{
@@ -81,18 +88,22 @@ func NewPeer(addr string, attrs map[string]string) *Peer {
 	}
 }
 
+// Addr returns the address of the peer
 func (p *Peer) Addr() string {
 	return p.PeerInfo.Addr
 }
 
+// Attributes returns the attributes of the peer
 func (p *Peer) Attributes() map[string]string {
 	return p.PeerInfo.Attributes
 }
 
+// SetConnection sets the connection of the peer
 func (p *Peer) SetConnection(conn *grpc.ClientConn) {
 	p.conn = conn
 }
 
+// GetConnection returns the connection of the peer
 func (p *Peer) GetState() PeerState {
 	if p.conn == nil {
 		return NoConnection
