@@ -2,6 +2,7 @@ package peer
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"net/url"
 	"strings"
@@ -48,7 +49,7 @@ func (ps *PeerStore) AddPeer(peer *Peer) error {
 	if err != nil {
 		return err
 	}
-	if !exists {
+	if exists {
 		return ErrPeerAlreadyExists
 	}
 
@@ -109,7 +110,7 @@ func (ps *PeerStore) GetPeer(addr string) (*Peer, error) {
 	if err != nil {
 		return nil, err
 	}
-	if exists {
+	if !exists {
 		return nil, ErrPeerNotFouund
 	}
 
@@ -161,16 +162,33 @@ func (ps *PeerStore) SetPeerConnection(addr string, conn *grpc.ClientConn) (*grp
 }
 
 func (ps *PeerStore) validatePeerAddr(addr string) (string, error) {
-	ip := net.ParseIP(addr)
-	if ip != nil {
-		return string(ip), nil
+	host, err := parseIP(addr)
+	if err == nil && host != "" {
+		return host, nil
 	}
 
 	u, err := url.Parse(addr)
 	if err != nil {
 		return "", err
 	}
-	host := strings.TrimPrefix(u.Host, "www.")
+	host = strings.TrimPrefix(u.Host, "www.")
 
 	return host, nil
+}
+
+func parseIP(addr string) (string, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		if ip := net.ParseIP(addr); ip != nil {
+			return ip.String(), nil
+		}
+		return "", ErrInvalidPeerAddress
+	}
+	if ip := net.ParseIP(host); ip == nil {
+		return "", ErrInvalidPeerAddress
+	}
+	if p, err := net.LookupPort("tcp", port); err != nil || p < 0 {
+		return "", ErrInvalidPeerAddress
+	}
+	return fmt.Sprintf("%s:%s", host, port), nil
 }
