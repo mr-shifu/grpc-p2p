@@ -48,7 +48,7 @@ func (ps *PeerService) AddPeer(p *Peer) error {
 	return ps.peerstore.AddPeer(p)
 }
 
-func (ps *PeerService) AddPeers(peers []*Peer) (int, error) {
+func (ps *PeerService) AddPeers(peers []*Peer) ([]*Peer, error) {
 	return ps.peerstore.AddPeers(peers, true)
 }
 

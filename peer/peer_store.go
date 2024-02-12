@@ -56,19 +56,19 @@ func (ps *PeerStore) AddPeer(p *Peer) error {
 	return nil
 }
 
-func (ps *PeerStore) AddPeers(peers []*Peer, skip_errors bool) (int, error) {
-	count := 0
+func (ps *PeerStore) AddPeers(peers []*Peer, skip_errors bool) ([]*Peer, error) {
+	var refs []*Peer
 	for _, peer := range peers {
 		if err := ps.AddPeer(peer); err != nil {
 			if skip_errors || err == ErrPeerAlreadyExists {
 				continue
 			} else {
-				return count, err
+				return refs, err
 			}
 		}
-		count++
+		refs = append(refs, peer)
 	}
-	return count, nil
+	return refs, nil
 }
 
 func (ps *PeerStore) UpdatePeer(p *Peer) error {
