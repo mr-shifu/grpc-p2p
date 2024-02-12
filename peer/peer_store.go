@@ -8,14 +8,10 @@ import (
 )
 
 var (
-	ErrInvalidPeerAddress     = errors.New("invalid peer address")
-	ErrInvalidPeerName        = errors.New("invalid peer name")
-	ErrInvalidPeerClusterName = errors.New("invalid peer cluster name")
-	ErrPeerNotFouund          = errors.New("peer not found")
-	ErrPeerAlreadyExists      = errors.New("peer already exists")
+	ErrInvalidPeerAddress     = errors.New("peerstore: invalid peer address")
+	ErrPeerNotFouund          = errors.New("peerstore: peer not found")
+	ErrPeerAlreadyExists      = errors.New("peerstore: failed to add peer. peer already exists")
 )
-
-
 
 type PeerStore struct {
 	lock  sync.RWMutex
