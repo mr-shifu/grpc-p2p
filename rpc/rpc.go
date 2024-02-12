@@ -75,9 +75,9 @@ func peersToPbPeers(peers []*peer.Peer) []*p2p_pb.Peer {
 			})
 		}
 		p := &p2p_pb.Peer{
-			Address: peer.Addr(),
+			Address:    peer.Addr(),
 			Attributes: attrs,
-			State:   peer.GetState().String(),
+			State:      peer.GetState().String(),
 		}
 		pbPeers = append(pbPeers, p)
 	}

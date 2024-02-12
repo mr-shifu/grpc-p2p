@@ -5,18 +5,17 @@ import (
 	"errors"
 
 	"github.com/mr-shifu/grpc-p2p/config"
-	p2p_pb "github.com/mr-shifu/grpc-p2p/proto"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
 )
 
 type PeerService struct {
-	self      *config.Peer
+	self      *Peer
 	bootstrap []config.Peer
 	peerstore *PeerStore
+	client    *Client
 
 	logger zerolog.Logger
 }
@@ -24,16 +23,19 @@ type PeerService struct {
 func NewPeerService(cfg *config.Config, logger zerolog.Logger) *PeerService {
 	store := NewPeerStore()
 
+	self := NewPeer(cfg.Local.Addr, cfg.Local.Attributes)
+
 	ps := &PeerService{
-		self:      &cfg.Local,
+		self:      self,
 		bootstrap: cfg.Bootstrap,
 		peerstore: store,
+		client:    NewClient(),
 		logger:    logger,
 	}
 
 	// add bootstrap nodes into peerstore
 	for _, peer := range cfg.Bootstrap {
-		if peer.Addr != ps.self.Addr {
+		if peer.Addr != ps.self.Addr() {
 			p := NewPeer(peer.Addr, peer.Attributes)
 			ps.peerstore.AddPeer(p)
 		}
@@ -66,29 +68,18 @@ func (ps *PeerService) GetNeighbors(ctx context.Context, p *Peer) ([]*Peer, erro
 		return nil, errors.New("connection not ready")
 	}
 
-	var opts []string
-	opts = append(opts, "addr", ps.self.Addr)
-	for k, v := range ps.self.Attributes {
-		key := "attr-" + k
-		opts = append(opts, key, v)
-	}
-	ctx = metadata.AppendToOutgoingContext(ctx, opts...)
-
-	client := p2p_pb.NewPeerServiceClient(conn)
-	neighbors, err := client.GetPeers(ctx, &p2p_pb.GetPeersRequest{})
+	neihgbors, err := ps.client.GetPeers(ctx, conn, ps.self.PeerInfo)
 	if err != nil {
 		return nil, err
 	}
 
-	np := peersFromPbPeers(neighbors.Peers)
-
-	return np, nil
+	return neihgbors, nil
 }
 
 // Connect connects to a peer and returns a client connection and updates peer connection at peerstore
 // throws error if connection fails
 func (ps *PeerService) Connect(addr string) (*grpc.ClientConn, error) {
-	if addr == ps.self.Addr {
+	if addr == ps.self.Addr() {
 		return nil, errors.New("cannot connect to self")
 	}
 
@@ -131,17 +122,4 @@ func (ps *PeerService) DisconnectAll() error {
 		}
 	}
 	return nil
-}
-
-func peersFromPbPeers(pbPeers []*p2p_pb.Peer) []*Peer {
-	var peers []*Peer
-	for _, peer := range pbPeers {
-		attrs := make(map[string]string)
-		for _, attr := range peer.Attributes {
-			attrs[attr.Key] = attr.Value
-		}
-		p := NewPeer(peer.Address, attrs)
-		peers = append(peers, p)
-	}
-	return peers
 }
