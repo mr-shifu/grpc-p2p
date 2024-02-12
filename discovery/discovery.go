@@ -46,7 +46,7 @@ func (d *Discovery) refresh(ctx context.Context, peers []*peer.Peer) error {
 	for _, p := range peers {
 		if p.GetState() != peer.Ready {
 			// connect to the peer and add to peerstore
-			d.ps.Connect(p)
+			d.ps.Connect(p.Addr())
 		}
 	}
 	return nil

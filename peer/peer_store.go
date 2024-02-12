@@ -2,15 +2,18 @@ package peer
 
 import (
 	"errors"
+	"net"
+	"net/url"
+	"strings"
 	"sync"
 
 	"google.golang.org/grpc"
 )
 
 var (
-	ErrInvalidPeerAddress     = errors.New("peerstore: invalid peer address")
-	ErrPeerNotFouund          = errors.New("peerstore: peer not found")
-	ErrPeerAlreadyExists      = errors.New("peerstore: failed to add peer. peer already exists")
+	ErrInvalidPeerAddress = errors.New("peerstore: invalid peer address")
+	ErrPeerNotFouund      = errors.New("peerstore: peer not found")
+	ErrPeerAlreadyExists  = errors.New("peerstore: failed to add peer. peer already exists")
 )
 
 type PeerStore struct {
@@ -27,24 +30,26 @@ func NewPeerStore() *PeerStore {
 	}
 }
 
-func (ps *PeerStore) Exists(peer *Peer) bool {
-	if peer.Addr() == "" {
-		return false
+func (ps *PeerStore) Exists(addr string) (bool, error) {
+	addr, err := ps.validatePeerAddr(addr)
+	if err != nil {
+		return false, err
 	}
 
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
 
-	_, ok := ps.peers[peer.Addr()]
-	return ok
+	_, ok := ps.peers[addr]
+	return ok, nil
 }
 
 func (ps *PeerStore) AddPeer(peer *Peer) error {
-	if ps.Exists(peer) {
-		return ErrPeerAlreadyExists
+	exists, err := ps.Exists(peer.Addr())
+	if err != nil {
+		return err
 	}
-	if peer.Addr() == "" {
-		return ErrInvalidPeerAddress
+	if !exists {
+		return ErrPeerAlreadyExists
 	}
 
 	ps.lock.Lock()
@@ -66,11 +71,12 @@ func (ps *PeerStore) AddPeers(peers ...*Peer) error {
 }
 
 func (ps *PeerStore) UpdatePeer(peer *Peer) error {
-	if !ps.Exists(peer) {
-		return ErrPeerNotFouund
+	exists, err := ps.Exists(peer.Addr())
+	if err != nil {
+		return err
 	}
-	if peer.Addr() == "" {
-		return ErrInvalidPeerAddress
+	if exists {
+		return ErrPeerNotFouund
 	}
 
 	ps.lock.Lock()
@@ -83,8 +89,12 @@ func (ps *PeerStore) UpdatePeer(peer *Peer) error {
 }
 
 func (ps *PeerStore) RemovePeer(peer *Peer) error {
-	if peer.Addr() == "" {
-		return ErrInvalidPeerAddress
+	exists, err := ps.Exists(peer.Addr())
+	if err != nil {
+		return err
+	}
+	if exists {
+		return ErrPeerNotFouund
 	}
 
 	ps.lock.Lock()
@@ -95,8 +105,12 @@ func (ps *PeerStore) RemovePeer(peer *Peer) error {
 }
 
 func (ps *PeerStore) GetPeer(addr string) (*Peer, error) {
-	if addr == "" {
-		return nil, ErrInvalidPeerAddress
+	exists, err := ps.Exists(addr)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return nil, ErrPeerNotFouund
 	}
 
 	ps.lock.Lock()
@@ -144,4 +158,19 @@ func (ps *PeerStore) SetPeerConnection(addr string, conn *grpc.ClientConn) (*grp
 
 	ps.conns[addr] = conn
 	return conn, nil
+}
+
+func (ps *PeerStore) validatePeerAddr(addr string) (string, error) {
+	ip := net.ParseIP(addr)
+	if ip != nil {
+		return string(ip), nil
+	}
+
+	u, err := url.Parse(addr)
+	if err != nil {
+		return "", err
+	}
+	host := strings.TrimPrefix(u.Host, "www.")
+
+	return host, nil
 }

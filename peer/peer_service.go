@@ -55,7 +55,7 @@ func (ps *PeerService) GetPeers() []*Peer {
 }
 
 func (ps *PeerService) GetNeighbors(ctx context.Context, p *Peer) ([]*Peer, error) {
-	conn, err := ps.Connect(p)
+	conn, err := ps.Connect(p.Addr())
 	if err != nil {
 		return nil, err
 	}
@@ -87,12 +87,12 @@ func (ps *PeerService) GetNeighbors(ctx context.Context, p *Peer) ([]*Peer, erro
 
 // Connect connects to a peer and returns a client connection and updates peer connection at peerstore
 // throws error if connection fails
-func (ps *PeerService) Connect(p *Peer) (*grpc.ClientConn, error) {
-	if p.Addr() == ps.self.Addr {
+func (ps *PeerService) Connect(addr string) (*grpc.ClientConn, error) {
+	if addr == ps.self.Addr {
 		return nil, errors.New("cannot connect to self")
 	}
 
-	p, err := ps.peerstore.GetPeer(p.Addr())
+	p, err := ps.peerstore.GetPeer(addr)
 	if err != nil {
 		return nil, err
 	}
@@ -109,29 +109,24 @@ func (ps *PeerService) Connect(p *Peer) (*grpc.ClientConn, error) {
 
 // Disconnect disconnects from a peer and updates peer connection at peerstore
 // throws error if disconnection fails
-func (ps *PeerService) Disconnect(p *Peer) error {
-	if p.conn == nil {
-		return errors.New("peer not connected")
-	}
-	if err := p.conn.Close(); err != nil {
+func (ps *PeerService) Disconnect(addr string) error {
+	p, err := ps.peerstore.GetPeer(addr)
+	if err != nil {
 		return err
 	}
 
 	// update peer connection at peerstore
-	p.conn = nil
-	if ps.peerstore.Exists(p) {
-		ps.peerstore.UpdatePeer(p)
-	} else {
-		ps.peerstore.AddPeer(p)
+	if p.GetState() == Ready {
+		p.conn.Close()
+		ps.peerstore.SetPeerConnection(p.Addr(), nil)
 	}
-
 	return nil
 }
 
 func (ps *PeerService) DisconnectAll() error {
 	peers := ps.peerstore.GetAllPeers()
 	for _, peer := range peers {
-		if err := ps.Disconnect(peer); err != nil {
+		if err := ps.Disconnect(peer.Addr()); err != nil {
 			return err
 		}
 	}
