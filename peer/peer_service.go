@@ -22,23 +22,20 @@ type PeerService struct {
 }
 
 func NewPeerService(cfg *config.Config, logger zerolog.Logger) *PeerService {
-	peerstore := NewPeerStore()
+	store := NewPeerStore()
 
 	ps := &PeerService{
 		self:      &cfg.Local,
 		bootstrap: cfg.Bootstrap,
-		peerstore: peerstore,
+		peerstore: store,
 		logger:    logger,
 	}
 
 	// add bootstrap nodes into peerstore
 	for _, peer := range cfg.Bootstrap {
 		if peer.Addr != ps.self.Addr {
-			ps.peerstore.AddPeer(&Peer{
-				Name:        peer.Name,
-				ClusterName: peer.ClusterName,
-				Addr:        peer.Addr,
-			})
+			p := NewPeer(peer.Addr, peer.Attributes)
+			ps.peerstore.AddPeer(p)
 		}
 	}
 
@@ -49,32 +46,35 @@ func (ps *PeerService) AddPeer(p *Peer) error {
 	return ps.peerstore.AddPeer(p)
 }
 
+func (ps *PeerService) AddPeers(peers []*Peer) error {
+	return ps.peerstore.AddPeers(peers...)
+}
+
 func (ps *PeerService) GetPeers() []*Peer {
 	return ps.peerstore.GetAllPeers()
 }
 
-func (ps *PeerService) GetClusterPeers() []*Peer {
-	peers := ps.peerstore.GetAllPeers()
-	var clusterPeers []*Peer
-	for _, peer := range peers {
-		if peer.ClusterName == ps.self.ClusterName {
-			clusterPeers = append(clusterPeers, peer)
-		}
+func (ps *PeerService) GetNeighbors(ctx context.Context, p *Peer) ([]*Peer, error) {
+	conn, err := ps.Connect(p)
+	if err != nil {
+		return nil, err
 	}
-	return clusterPeers
-}
-
-func (ps *PeerService) GetNeighbors(ctx context.Context, p *Peer) ([]Peer, error) {
-	if p.State() != connectivity.Ready {
-		_, err := ps.Connect(p)
-		if err != nil {
-			return nil, err
-		}
+	if conn == nil {
+		return nil, errors.New("connection failed")
+	}
+	if conn.GetState() != connectivity.Ready {
+		return nil, errors.New("connection not ready")
 	}
 
-	ctx = metadata.AppendToOutgoingContext(ctx, "addr", ps.self.Addr, "cluster_name", ps.self.ClusterName, "peer_name", ps.self.Name)
+	var opts []string
+	opts = append(opts, "addr", ps.self.Addr)
+	for k, v := range ps.self.Attributes {
+		key := "attr-" + k
+		opts = append(opts, key, v)
+	}
+	ctx = metadata.AppendToOutgoingContext(ctx, opts...)
 
-	client := p2p_pb.NewPeerServiceClient(p.conn)
+	client := p2p_pb.NewPeerServiceClient(conn)
 	neighbors, err := client.GetPeers(ctx, &p2p_pb.GetPeersRequest{})
 	if err != nil {
 		return nil, err
@@ -88,16 +88,21 @@ func (ps *PeerService) GetNeighbors(ctx context.Context, p *Peer) ([]Peer, error
 // Connect connects to a peer and returns a client connection and updates peer connection at peerstore
 // throws error if connection fails
 func (ps *PeerService) Connect(p *Peer) (*grpc.ClientConn, error) {
-	// connect to peer
-	conn, err := grpc.Dial(p.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-
-	// update peer connection at peerstore
-	p.conn = conn
-	if ps.peerstore.Exists(p) {
-		ps.peerstore.UpdatePeer(p)
-	} else {
-		ps.peerstore.AddPeer(p)
+	if p.Addr() == ps.self.Addr {
+		return nil, errors.New("cannot connect to self")
 	}
+
+	p, err := ps.peerstore.GetPeer(p.Addr())
+	if err != nil {
+		return nil, err
+	}
+	if p.GetState() == Ready {
+		return p.conn, nil
+	}
+
+	// connect to peer
+	conn, err := grpc.Dial(p.Addr(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	ps.peerstore.SetPeerConnection(p.Addr(), conn)
 
 	return conn, err
 }
@@ -133,14 +138,14 @@ func (ps *PeerService) DisconnectAll() error {
 	return nil
 }
 
-func peersFromPbPeers(pbPeers []*p2p_pb.Peer) []Peer {
-	var peers []Peer
+func peersFromPbPeers(pbPeers []*p2p_pb.Peer) []*Peer {
+	var peers []*Peer
 	for _, peer := range pbPeers {
-		p := Peer{
-			Name:        peer.Name,
-			Addr:        peer.Address,
-			ClusterName: peer.CLusterName,
+		attrs := make(map[string]string)
+		for _, attr := range peer.Attributes {
+			attrs[attr.Key] = attr.Value
 		}
+		p := NewPeer(peer.Address, attrs)
 		peers = append(peers, p)
 	}
 	return peers

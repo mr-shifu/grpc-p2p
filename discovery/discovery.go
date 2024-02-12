@@ -6,7 +6,6 @@ import (
 
 	"github.com/mr-shifu/grpc-p2p/peer"
 	"github.com/rs/zerolog"
-	"google.golang.org/grpc/connectivity"
 )
 
 type Discovery struct {
@@ -24,10 +23,10 @@ func NewDiscovery(ps *peer.PeerService, logger zerolog.Logger) *Discovery {
 // scan starts discovery
 // 1. Get adjacent peers from peers in the peerstore
 // 2. Adds all adjacent peers to the peerstore
-func (d *Discovery) scan(ctx context.Context) []peer.Peer {
+func (d *Discovery) scan(ctx context.Context) []*peer.Peer {
 	peers := d.ps.GetPeers()
 
-	var allpeers []peer.Peer
+	var allpeers []*peer.Peer
 	for _, peer := range peers {
 		neighbors, err := d.ps.GetNeighbors(ctx, peer)
 		if err != nil {
@@ -42,11 +41,11 @@ func (d *Discovery) scan(ctx context.Context) []peer.Peer {
 }
 
 // refresh verifies peers in the peerstore and connects to the peers if not connected
-func (d *Discovery) refresh(ctx context.Context, peers []peer.Peer) error {
-	for _, peer := range peers {
-		if peer.State() != connectivity.Ready {
+func (d *Discovery) refresh(ctx context.Context, peers []*peer.Peer) error {
+	for _, p := range peers {
+		if p.GetState() != peer.Ready {
 			// connect to the peer and add to peerstore
-			if _, err := d.ps.Connect(&peer); err != nil {
+			if _, err := d.ps.Connect(p); err != nil {
 				continue
 			}
 		}
@@ -58,6 +57,7 @@ func (d *Discovery) Start(ctx context.Context) error {
 	go func() {
 		for {
 			peers := d.scan(ctx)
+			d.ps.AddPeers(peers)
 			if err := d.refresh(ctx, peers); err != nil {
 				d.logger.Error().Err(err).Msg("failed to refresh peers")
 			}
@@ -71,13 +71,13 @@ func (d *Discovery) Start(ctx context.Context) error {
 	return nil
 }
 
-func removeDuplicatePeers(peers []peer.Peer) []peer.Peer {
+func removeDuplicatePeers(peers []*peer.Peer) []*peer.Peer {
 	encountered := map[string]bool{}
-	result := []peer.Peer{}
+	result := []*peer.Peer{}
 
 	for _, p := range peers {
-		if !encountered[p.Addr] {
-			encountered[p.Addr] = true
+		if !encountered[p.Addr()] {
+			encountered[p.Addr()] = true
 			result = append(result, p)
 		}
 	}
