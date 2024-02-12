@@ -3,6 +3,7 @@ package rpc
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/mr-shifu/grpc-p2p/peer"
 	p2p_pb "github.com/mr-shifu/grpc-p2p/proto"
@@ -34,8 +35,8 @@ func (r *RpcService) GetPeers(ctx context.Context, req *p2p_pb.GetPeersRequest) 
 	if err != nil {
 		return nil, errors.New("failed to validate peer")
 	}
-	r.ps.AddPeer(peer)
-
+	defer r.ps.AddPeer(peer)
+	
 	peers := r.ps.GetPeers()
 	pbPeers := peersToPbPeers(peers)
 	return &p2p_pb.GetPeersResponse{
@@ -44,34 +45,39 @@ func (r *RpcService) GetPeers(ctx context.Context, req *p2p_pb.GetPeersRequest) 
 }
 
 func getPeerFromContext(ctx context.Context) (*peer.Peer, error) {
-	p := &peer.Peer{}
-
 	md, _ := metadata.FromIncomingContext(ctx)
-	
-	pn := md.Get("peer_name")
-	if len(pn) > 0 {
-		p.Name = pn[0]
+	addrs := md.Get("addr")
+	if len(addrs) == 0 {
+		return nil, errors.New("peer address not found")
 	}
-	cn := md.Get("cluster_name")
-	if len(cn) > 0 {
-		p.ClusterName = cn[0]
+
+	attrs := make(map[string]string)
+	for k, v := range md {
+		if strings.HasPrefix(k, "attr-") {
+			key := strings.TrimPrefix(k, "attr-")
+			attrs[key] = v[0]
+		}
 	}
-	addr := md.Get("addr")
-	if len(addr) > 0 {
-		p.Addr = addr[0]
-	}
-	
+
+	p := peer.NewPeer(addrs[0], attrs)
+
 	return p, nil
 }
 
 func peersToPbPeers(peers []*peer.Peer) []*p2p_pb.Peer {
 	var pbPeers []*p2p_pb.Peer
 	for _, peer := range peers {
+		var attrs []*p2p_pb.Attribute
+		for k, v := range peer.Attributes() {
+			attrs = append(attrs, &p2p_pb.Attribute{
+				Key:   k,
+				Value: v,
+			})
+		}
 		p := &p2p_pb.Peer{
-			Name:        peer.Name,
-			Address:     peer.Addr,
-			CLusterName: peer.ClusterName,
-			State:       peer.State().String(),
+			Address: peer.Addr(),
+			Attributes: attrs,
+			State:   peer.GetState().String(),
 		}
 		pbPeers = append(pbPeers, p)
 	}
