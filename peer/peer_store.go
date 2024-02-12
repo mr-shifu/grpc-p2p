@@ -32,128 +32,174 @@ func NewPeerStore() *PeerStore {
 }
 
 func (ps *PeerStore) Exists(addr string) (bool, error) {
-	addr, err := ps.validatePeerAddr(addr)
+	addr, err := validatePeerAddr(addr)
 	if err != nil {
-		return false, err
+		return false, ErrInvalidPeerAddress
 	}
 
-	ps.lock.Lock()
-	defer ps.lock.Unlock()
-
-	_, ok := ps.peers[addr]
-	return ok, nil
+	return ps.exists(addr), nil
 }
 
-func (ps *PeerStore) AddPeer(peer *Peer) error {
-	exists, err := ps.Exists(peer.Addr())
+func (ps *PeerStore) AddPeer(p *Peer) error {
+	addr, err := validatePeerAddr(p.Addr())
 	if err != nil {
-		return err
+		return ErrInvalidPeerAddress
 	}
-	if exists {
+
+	if exists := ps.exists(addr); exists {
 		return ErrPeerAlreadyExists
 	}
 
-	ps.lock.Lock()
-	defer ps.lock.Unlock()
-
-	p := NewPeer(peer.Addr(), peer.Attributes())
-	ps.peers[peer.Addr()] = p.PeerInfo
+	np := NewPeer(addr, p.Attributes())
+	ps.addPeer(np)
 
 	return nil
 }
 
-func (ps *PeerStore) AddPeers(peers ...*Peer) error {
+func (ps *PeerStore) AddPeers(peers []*Peer, skip_errors bool) (int, error) {
+	count := 0
 	for _, peer := range peers {
 		if err := ps.AddPeer(peer); err != nil {
-			return err
+			if skip_errors || err == ErrPeerAlreadyExists {
+				continue
+			} else {
+				return count, err
+			}
 		}
+		count++
 	}
-	return nil
+	return count, nil
 }
 
-func (ps *PeerStore) UpdatePeer(peer *Peer) error {
-	exists, err := ps.Exists(peer.Addr())
+func (ps *PeerStore) UpdatePeer(p *Peer) error {
+	addr, err := validatePeerAddr(p.Addr())
 	if err != nil {
-		return err
+		return ErrInvalidPeerAddress
 	}
-	if exists {
+
+	if exists := ps.exists(addr); !exists {
 		return ErrPeerNotFouund
 	}
 
-	ps.lock.Lock()
-	defer ps.lock.Unlock()
+	np := NewPeer(addr, p.Attributes())
+	ps.addPeer(np)
 
-	ps.peers[peer.Addr()] = &PeerInfo{
-		Attributes: peer.Attributes(),
-	}
 	return nil
 }
 
-func (ps *PeerStore) RemovePeer(peer *Peer) error {
-	exists, err := ps.Exists(peer.Addr())
+func (ps *PeerStore) RemovePeer(p *Peer) error {
+	addr, err := validatePeerAddr(p.Addr())
 	if err != nil {
-		return err
+		return ErrInvalidPeerAddress
 	}
-	if exists {
+
+	if exists := ps.exists(addr); !exists {
 		return ErrPeerNotFouund
 	}
 
-	ps.lock.Lock()
-	defer ps.lock.Unlock()
+	ps.removePeer(addr)
 
-	delete(ps.peers, peer.Addr())
 	return nil
 }
 
 func (ps *PeerStore) GetPeer(addr string) (*Peer, error) {
-	exists, err := ps.Exists(addr)
+	addr, err := validatePeerAddr(addr)
+	if err != nil {
+		return nil, ErrInvalidPeerAddress
+	}
+
+	peerInfo, err := ps.getPeer(addr)
 	if err != nil {
 		return nil, err
 	}
-	if !exists {
-		return nil, ErrPeerNotFouund
-	}
 
-	ps.lock.Lock()
-	defer ps.lock.Unlock()
-
-	if _, ok := ps.peers[addr]; !ok {
-		return nil, ErrPeerNotFouund
-	}
-	p := NewPeer(ps.peers[addr].Addr, ps.peers[addr].Attributes)
+	p := NewPeer(peerInfo.Addr, peerInfo.Attributes)
 	p.SetConnection(ps.conns[addr])
 
 	return p, nil
 }
 
 func (ps *PeerStore) GetAllPeers() []*Peer {
+	return ps.getAllPeers()
+}
+
+func (ps *PeerStore) GetPeerConnection(addr string) (*grpc.ClientConn, error) {
+	addr, err := validatePeerAddr(addr)
+	if err != nil {
+		return nil, ErrInvalidPeerAddress
+	}
+	if exists := ps.exists(addr); !exists {
+		return nil, ErrPeerNotFouund
+	}
+
+	return ps.getPeerConnection(addr)
+}
+
+func (ps *PeerStore) SetPeerConnection(addr string, conn *grpc.ClientConn) (*grpc.ClientConn, error) {
+	addr, err := validatePeerAddr(addr)
+	if err != nil {
+		return nil, ErrInvalidPeerAddress
+	}
+	if exists := ps.exists(addr); !exists {
+		return nil, ErrPeerNotFouund
+	}
+
+	return ps.setPeerConnection(addr, conn)
+}
+
+func (ps *PeerStore) exists(addr string) bool {
+	ps.lock.Lock()
+	defer ps.lock.Unlock()
+
+	_, ok := ps.peers[addr]
+	return ok
+}
+
+func (ps *PeerStore) getPeer(addr string) (*PeerInfo, error) {
+	ps.lock.Lock()
+	defer ps.lock.Unlock()
+
+	if _, ok := ps.peers[addr]; !ok {
+		return nil, ErrPeerNotFouund
+	}
+	return ps.peers[addr], nil
+}
+
+func (ps *PeerStore) getAllPeers() []*Peer {
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
 
 	var peers []*Peer
 	for _, peer := range ps.peers {
 		p := NewPeer(peer.Addr, peer.Attributes)
+		p.SetConnection(ps.conns[peer.Addr])
 		peers = append(peers, p)
 	}
 	return peers
 }
 
-func (ps *PeerStore) GetPeerConnection(addr string) (*grpc.ClientConn, error) {
-	if addr == "" {
-		return nil, ErrInvalidPeerAddress
-	}
+func (ps *PeerStore) addPeer(p *Peer) {
+	ps.lock.Lock()
+	defer ps.lock.Unlock()
 
+	ps.peers[p.Addr()] = p.PeerInfo
+}
+
+func (ps *PeerStore) removePeer(addr string) {
+	ps.lock.Lock()
+	defer ps.lock.Unlock()
+
+	delete(ps.peers, addr)
+}
+
+func (ps *PeerStore) getPeerConnection(addr string) (*grpc.ClientConn, error) {
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
 
 	return ps.conns[addr], nil
 }
 
-func (ps *PeerStore) SetPeerConnection(addr string, conn *grpc.ClientConn) (*grpc.ClientConn, error) {
-	if addr == "" {
-		return nil, ErrInvalidPeerAddress
-	}
-
+func (ps *PeerStore) setPeerConnection(addr string, conn *grpc.ClientConn) (*grpc.ClientConn, error) {
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
 
@@ -161,7 +207,7 @@ func (ps *PeerStore) SetPeerConnection(addr string, conn *grpc.ClientConn) (*grp
 	return conn, nil
 }
 
-func (ps *PeerStore) validatePeerAddr(addr string) (string, error) {
+func validatePeerAddr(addr string) (string, error) {
 	host, err := parseIP(addr)
 	if err == nil && host != "" {
 		return host, nil
