@@ -60,6 +60,10 @@ func (ps *PeerService) GetPeers() []*Peer {
 	return ps.peerstore.GetPeers()
 }
 
+func (ps *PeerService) GetPeersWithAttributes(attrs map[string]string) []*Peer {
+	return ps.peerstore.GetPeersWithAttributes(attrs)
+}
+
 func (ps *PeerService) GetState(addr string) (PeerState, error) {
 	p, err := ps.peerstore.GetPeer(addr)
 	if err != nil {

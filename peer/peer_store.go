@@ -123,6 +123,22 @@ func (ps *PeerStore) GetPeers() []*Peer {
 	return ps.getPeers()
 }
 
+func (ps *PeerStore) GetPeersWithAttributes(attrs map[string]string) []*Peer {
+	peers := ps.getPeers()
+	if len(attrs) == 0 {
+		return peers
+	}
+
+	var filtered []*Peer
+	for _, peer := range peers {
+		if peer.HasAttributes(attrs) {
+			filtered = append(filtered, peer)
+		}
+	}
+
+	return filtered
+}
+
 func (ps *PeerStore) GetPeerConnection(addr string) (*grpc.ClientConn, error) {
 	addr, err := validatePeerAddr(addr)
 	if err != nil {

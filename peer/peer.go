@@ -98,6 +98,16 @@ func (p *Peer) Attributes() map[string]string {
 	return p.PeerInfo.Attributes
 }
 
+func (p *Peer) HasAttributes(opts PeerAttribute) bool {
+	attrs := p.Attributes()
+	for k, v := range opts {
+		if attrs[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
 // SetConnection sets the connection of the peer
 func (p *Peer) SetConnection(conn *grpc.ClientConn) {
 	p.conn = conn
