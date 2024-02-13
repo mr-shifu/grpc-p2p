@@ -114,6 +114,11 @@ func (p *Peer) SetConnection(conn *grpc.ClientConn) {
 }
 
 // GetConnection returns the connection of the peer
+func (p *Peer) GetConnection() *grpc.ClientConn {
+	return p.conn
+}
+
+// GetState returns the state of connection to the peer
 func (p *Peer) GetState() PeerState {
 	if p.conn == nil {
 		return NoConnection
