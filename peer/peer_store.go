@@ -119,8 +119,8 @@ func (ps *PeerStore) GetPeer(addr string) (*Peer, error) {
 	return p, nil
 }
 
-func (ps *PeerStore) GetAllPeers() []*Peer {
-	return ps.getAllPeers()
+func (ps *PeerStore) GetPeers() []*Peer {
+	return ps.getPeers()
 }
 
 func (ps *PeerStore) GetPeerConnection(addr string) (*grpc.ClientConn, error) {
@@ -165,7 +165,7 @@ func (ps *PeerStore) getPeer(addr string) (*PeerInfo, error) {
 	return ps.peers[addr], nil
 }
 
-func (ps *PeerStore) getAllPeers() []*Peer {
+func (ps *PeerStore) getPeers() []*Peer {
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
 

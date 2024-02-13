@@ -45,7 +45,7 @@ func NewPeerService(cfg *config.Config, logger zerolog.Logger) *PeerService {
 }
 
 func (ps *PeerService) Self() *Peer {
-	return ps.self	
+	return ps.self
 }
 
 func (ps *PeerService) AddPeer(p *Peer) error {
@@ -57,7 +57,7 @@ func (ps *PeerService) AddPeers(peers []*Peer) ([]*Peer, error) {
 }
 
 func (ps *PeerService) GetPeers() []*Peer {
-	return ps.peerstore.GetAllPeers()
+	return ps.peerstore.GetPeers()
 }
 
 func (ps *PeerService) GetState(addr string) (PeerState, error) {
@@ -127,7 +127,7 @@ func (ps *PeerService) Disconnect(addr string) error {
 }
 
 func (ps *PeerService) DisconnectAll() error {
-	peers := ps.peerstore.GetAllPeers()
+	peers := ps.peerstore.GetPeers()
 	for _, peer := range peers {
 		if err := ps.Disconnect(peer.Addr()); err != nil {
 			return err
