@@ -112,6 +112,14 @@ func (n *Node) Stop() error {
 	}
 }
 
+func (n *Node) PeerService() *peer.PeerService {
+	return n.peerService
+}
+
+func (n *Node) Server() *grpc.Server {
+	return n.server
+}
+
 func (n *Node) Self() *config.Peer {
 	return n.local
 }
